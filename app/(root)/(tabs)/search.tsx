@@ -1,21 +1,24 @@
+import FilterModal from "@/components/FilterModal";
+import PropertyCard from "@/components/PropertyCard";
+import { PropertySkeleton } from "@/components/Skeletons";
+import { useDebounce } from "@/hooks/useDebounce";
+import { supabase } from "@/lib/supabase";
+import { formatPrice } from "@/lib/utils";
+import { useFilterStore } from "@/store/filterStore";
+import { Property } from "@/types";
+import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { useLocalSearchParams } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
+  Animated,
+  Keyboard,
   Text,
   TextInput,
-  FlatList,
   TouchableOpacity,
-  ActivityIndicator,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { Property } from "@/types";
-import { useFilterStore } from "@/store/filterStore";
-import { formatPrice } from "@/lib/utils";
-import PropertyCard from "@/components/PropertyCard";
-import FilterModal from "@/components/FilterModal";
-import { useLocalSearchParams } from "expo-router";
 
 export default function SearchScreen() {
   const [results, setResults] = useState<Property[]>([]);
@@ -23,12 +26,6 @@ export default function SearchScreen() {
   const [showFilters, setShowFilters] = useState(false);
 
   const { openFilters } = useLocalSearchParams<{ openFilters?: string }>();
-
-  useEffect(() => {
-    if (openFilters === "true") {
-      setShowFilters(true);
-    }
-  }, [openFilters]);
 
   const {
     search,
@@ -43,6 +40,31 @@ export default function SearchScreen() {
     setMaxPrice,
   } = useFilterStore();
 
+  const debouncedSearch = useDebounce(search, 500);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (openFilters === "true") {
+      setShowFilters(true);
+    }
+  }, [openFilters]);
+
+  useEffect(() => {
+    fetchResults();
+  }, [debouncedSearch, type, bedrooms, minPrice, maxPrice]);
+
+  useEffect(() => {
+    if (!loading) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [loading]);
+
   const activeFilterCount = [
     type !== null,
     bedrooms !== null,
@@ -50,34 +72,19 @@ export default function SearchScreen() {
     maxPrice !== null,
   ].filter(Boolean).length;
 
-  useEffect(() => {
-    fetchResults();
-  }, [search, type, bedrooms, minPrice, maxPrice]);
-
   const fetchResults = async () => {
     setLoading(true);
 
     let query = supabase.from("properties").select("*");
 
-    if (search) {
-      query = query.or(`title.ilike.%${search}%,city.ilike.%${search}%`);
+    if (debouncedSearch) {
+      query = query.or(`title.ilike.%${debouncedSearch}%,city.ilike.%${debouncedSearch}%`);
     }
 
-    if (type) {
-      query = query.eq("type", type);
-    }
-
-    if (bedrooms) {
-      query = query.eq("bedrooms", bedrooms);
-    }
-
-    if (minPrice) {
-      query = query.gte("price", minPrice);
-    }
-
-    if (maxPrice) {
-      query = query.lte("price", maxPrice);
-    }
+    if (type) query = query.eq("type", type);
+    if (bedrooms) query = query.eq("bedrooms", bedrooms);
+    if (minPrice) query = query.gte("price", minPrice);
+    if (maxPrice) query = query.lte("price", maxPrice);
 
     const { data } = await query.order("created_at", { ascending: false });
 
@@ -85,64 +92,56 @@ export default function SearchScreen() {
     setLoading(false);
   };
 
+  const onFilterPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setShowFilters(true);
+  };
+
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-white">
       {/* Header */}
-      <View className="px-5 pt-4 pb-3">
-        <Text className="text-2xl font-bold text-gray-900 mb-4">
-          Find Property
+      <View className="px-5 pt-4 pb-4">
+        <Text className="text-3xl font-bold text-gray-900 mb-6">
+          Find Your Home
         </Text>
 
         {/* Search Bar + Filter Button */}
         <View className="flex-row items-center gap-3">
-          <View
-            className="flex-1 flex-row items-center bg-white rounded-2xl px-4 gap-3"
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.06,
-              shadowRadius: 6,
-              elevation: 2,
-            }}
-          >
-            <Ionicons name="search-outline" size={18} color="#9CA3AF" />
+          <View className="flex-1 flex-row items-center bg-gray-50 border border-gray-100 rounded-2xl px-4 gap-3">
+            <Ionicons name="search" size={20} color="#9CA3AF" />
             <TextInput
-              className="flex-1 py-3 text-gray-800"
-              placeholder="Search by title or city..."
+              className="flex-1 py-4 text-gray-800 text-base font-medium"
+              placeholder="Search city, title..."
               placeholderTextColor="#9CA3AF"
               value={search}
               onChangeText={setSearch}
               autoCapitalize="none"
+              returnKeyType="search"
+              onSubmitEditing={() => Keyboard.dismiss()}
             />
             {search.length > 0 && (
               <TouchableOpacity onPress={() => setSearch("")}>
-                <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                <Ionicons name="close-circle" size={20} color="#D1D5DB" />
               </TouchableOpacity>
             )}
           </View>
 
           {/* Filter Button */}
           <TouchableOpacity
-            onPress={() => setShowFilters(true)}
-            className={`w-12 h-12 rounded-2xl items-center justify-center ${
-              activeFilterCount > 0 ? "bg-blue-600" : "bg-white"
+            onPress={onFilterPress}
+            activeOpacity={0.8}
+            className={`w-14 h-14 rounded-2xl items-center justify-center shadow-lg ${
+              activeFilterCount > 0 ? "bg-blue-600 shadow-blue-200" : "bg-white border border-gray-100 shadow-gray-100"
             }`}
-            style={{
-              shadowColor: "#000",
-              shadowOffset: { width: 0, height: 1 },
-              shadowOpacity: 0.06,
-              shadowRadius: 6,
-              elevation: 2,
-            }}
           >
             <Ionicons
-              name="options-outline"
-              size={20}
-              color={activeFilterCount > 0 ? "#fff" : "#374151"}
+              name="options"
+              size={22}
+              color={activeFilterCount > 0 ? "#fff" : "#3B82F6"}
             />
             {activeFilterCount > 0 && (
-              <View className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full items-center justify-center">
-                <Text className="text-white text-[9px] font-bold">
+              <View className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 rounded-full items-center justify-center border-2 border-white">
+                <Text className="text-white text-[10px] font-black">
                   {activeFilterCount}
                 </Text>
               </View>
@@ -152,38 +151,35 @@ export default function SearchScreen() {
 
         {/* Active Filter Chips */}
         {activeFilterCount > 0 && (
-          <View className="flex-row flex-wrap gap-2 mt-3">
+          <View className="flex-row flex-wrap gap-2 mt-4">
             {type && (
-              <View className="flex-row items-center bg-blue-50 border border-blue-200 rounded-full px-3 py-1 gap-1">
-                <Text className="text-blue-700 text-xs font-semibold capitalize">
+              <View className="flex-row items-center bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 gap-1.5">
+                <Text className="text-blue-600 text-[10px] font-extrabold uppercase tracking-wider">
                   {type}
                 </Text>
                 <TouchableOpacity onPress={() => setType(null)}>
-                  <Ionicons name="close" size={12} color="#1D4ED8" />
+                  <Ionicons name="close" size={14} color="#3B82F6" />
                 </TouchableOpacity>
               </View>
             )}
             {bedrooms !== null && (
-              <View className="flex-row items-center bg-blue-50 border border-blue-200 rounded-full px-3 py-1 gap-1">
-                <Ionicons name="bed-outline" size={11} color="#1D4ED8" />
-                <Text className="text-blue-700 text-xs font-semibold">
-                  {bedrooms === 4
-                    ? "4+ beds"
-                    : `${bedrooms} bed${bedrooms > 1 ? "s" : ""}`}
+              <View className="flex-row items-center bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 gap-1.5">
+                <Text className="text-blue-600 text-[10px] font-extrabold uppercase tracking-wider">
+                  {bedrooms === 4 ? "4+ BEDS" : `${bedrooms} BEDS`}
                 </Text>
                 <TouchableOpacity onPress={() => setBedrooms(null)}>
-                  <Ionicons name="close" size={12} color="#1D4ED8" />
+                  <Ionicons name="close" size={14} color="#3B82F6" />
                 </TouchableOpacity>
               </View>
             )}
             {(minPrice !== null || maxPrice !== null) && (
-              <View className="flex-row items-center bg-blue-50 border border-blue-200 rounded-full px-3 py-1 gap-1">
-                <Text className="text-blue-700 text-xs font-semibold">
+              <View className="flex-row items-center bg-blue-50 border border-blue-100 rounded-xl px-3 py-1.5 gap-1.5">
+                <Text className="text-blue-600 text-[10px] font-extrabold uppercase tracking-wider">
                   {minPrice && maxPrice
-                    ? `${formatPrice(minPrice)} – ${formatPrice(maxPrice)}`
+                    ? `${formatPrice(minPrice)} - ${formatPrice(maxPrice)}`
                     : minPrice
-                    ? `From ${formatPrice(minPrice)}`
-                    : `Up to ${formatPrice(maxPrice!)}`}
+                    ? `>${formatPrice(minPrice)}`
+                    : `<${formatPrice(maxPrice!)}`}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
@@ -191,7 +187,7 @@ export default function SearchScreen() {
                     setMaxPrice(null);
                   }}
                 >
-                  <Ionicons name="close" size={12} color="#1D4ED8" />
+                  <Ionicons name="close" size={14} color="#3B82F6" />
                 </TouchableOpacity>
               </View>
             )}
@@ -200,39 +196,37 @@ export default function SearchScreen() {
       </View>
 
       {/* Results */}
-      <FlatList
-        data={results}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-        showsVerticalScrollIndicator={false}
-        renderItem={({ item }) => <PropertyCard property={item} />}
-        ListHeaderComponent={
-          <Text className="text-sm text-gray-400 mb-4">
-            {loading ? "Searching..." : `${results.length} properties found`}
-          </Text>
-        }
-        ListEmptyComponent={
-          !loading ? (
-            <View className="items-center py-20">
-              <Ionicons name="search-outline" size={48} color="#D1D5DB" />
-              <Text className="text-gray-400 mt-4 text-base">
-                No properties found
-              </Text>
-              <Text className="text-gray-300 text-sm mt-1">
-                Try a different search or adjust filters
-              </Text>
-            </View>
-          ) : (
-            <ActivityIndicator size="large" color="#2563EB" className="py-20" />
-          )
-        }
-      />
+      <View className="flex-1 px-5">
+        {loading ? (
+          <View>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <PropertySkeleton key={i} />
+            ))}
+          </View>
+        ) : (
+          <Animated.FlatList
+            style={{ opacity: fadeAnim }}
+            data={results}
+            keyExtractor={(item) => item.id}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
+            renderItem={({ item }) => <PropertyCard property={item} />}
+            ListEmptyComponent={
+              <View className="items-center py-20">
+                <View className="w-20 h-20 bg-gray-50 rounded-full items-center justify-center mb-4">
+                  <Ionicons name="search" size={32} color="#D1D5DB" />
+                </View>
+                <Text className="text-gray-900 text-lg font-bold">No results found</Text>
+                <Text className="text-gray-400 text-sm mt-1 text-center">
+                  We couldn't find any properties matching{"\n"}your current filters.
+                </Text>
+              </View>
+            }
+          />
+        )}
+      </View>
 
-      {/* Filter Modal */}
-      <FilterModal
-        visible={showFilters}
-        onClose={() => setShowFilters(false)}
-      />
+      <FilterModal visible={showFilters} onClose={() => setShowFilters(false)} />
     </SafeAreaView>
   );
 }
