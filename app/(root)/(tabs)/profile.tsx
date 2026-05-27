@@ -11,8 +11,10 @@ import {
   Text,
   TouchableOpacity,
   View,
+  ScrollView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as Haptics from "expo-haptics";
 
 export default function ProfileScreen() {
   const { user, isLoaded } = useUser();
@@ -21,16 +23,27 @@ export default function ProfileScreen() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleSignOut = async () => {
-    try {
-      await signOut();
-      router.replace("/sign-in");
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Sign Out",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await signOut();
+            router.replace("/sign-in");
+          } catch (error) {
+            console.error("Error signing out:", error);
+          }
+        },
+      },
+    ]);
   };
 
   const handleUpdateProfileImage = async () => {
     try {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
       const permissionResult =
         await ImagePicker.requestMediaLibraryPermissionsAsync();
 
@@ -63,6 +76,7 @@ export default function ProfileScreen() {
 
       await user?.setProfileImage({ file: dataUrl });
 
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Success", "Profile picture updated successfully!");
     } catch (error) {
       console.error("Error updating profile image:", error);
@@ -84,74 +98,94 @@ export default function ProfileScreen() {
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-white mb-10">
-      {/* Avatar + Name */}
-      <View className="items-center py-8">
-        <View className="relative">
-          <Image
-            source={{ uri: user.imageUrl }}
-            className="w-24 h-24 rounded-full mb-4"
-          />
-          <TouchableOpacity
-            onPress={handleUpdateProfileImage}
-            disabled={isUpdating}
-            className="absolute bottom-3 right-0 bg-blue-600 rounded-full p-2"
-          >
-            {isUpdating ? (
-              <ActivityIndicator size="small" color="white" />
-            ) : (
-              <Ionicons name="camera" size={16} color="white" />
-            )}
+    <SafeAreaView className="flex-1 bg-white">
+      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
+        {/* Header Section */}
+        <View className="items-center py-10 px-6">
+          <View className="relative mb-6">
+            <View className="w-32 h-32 rounded-full border-4 border-blue-50 p-1">
+              <Image
+                source={{ uri: user.imageUrl }}
+                className="w-full h-full rounded-full"
+              />
+            </View>
+            <TouchableOpacity
+              onPress={handleUpdateProfileImage}
+              disabled={isUpdating}
+              className="absolute bottom-1 right-1 bg-blue-600 w-10 h-10 rounded-full items-center justify-center border-4 border-white shadow-sm"
+            >
+              {isUpdating ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <Ionicons name="camera" size={18} color="white" />
+              )}
+            </TouchableOpacity>
+          </View>
+          
+          <Text className="text-2xl font-bold text-gray-900 text-center">
+            {user.firstName} {user.lastName}
+          </Text>
+          <Text className="text-gray-500 font-medium text-center mt-1">
+            {user.emailAddresses[0].emailAddress}
+          </Text>
+          
+          <TouchableOpacity className="mt-4 bg-gray-50 px-6 py-2 rounded-full border border-gray-100">
+            <Text className="text-gray-600 font-bold text-xs uppercase tracking-widest">Edit Profile</Text>
           </TouchableOpacity>
         </View>
-        <Text className="text-xl font-bold text-gray-800">
-          {user.firstName} {user.lastName}
-        </Text>
-        <Text className="text-gray-500 mt-1">
-          {user.emailAddresses[0].emailAddress}
-        </Text>
-      </View>
 
-      {/* Menu Items */}
-      <View className="px-6 gap-2">
-        <MenuItem
-          icon="heart-outline"
-          label="Saved Properties"
-          onPress={() => router.push("/(root)/(tabs)/saved")}
-        />
-        <MenuItem
-          icon="notifications-outline"
-          label="Notifications"
-          onPress={() =>
-            Alert.alert("Coming Soon", "Notifications coming soon!")
-          }
-        />
-        <MenuItem
-          icon="settings-outline"
-          label="Settings"
-          onPress={() => Alert.alert("Coming Soon", "Settings coming soon!")}
-        />
-        <MenuItem
-          icon="help-circle-outline"
-          label="Help & Support"
-          onPress={() =>
-            Linking.openURL(
-              "mailto:piyushagarwalvo@gmail.com?subject=Help%20%26%20Support%20-%20Kribb%20App"
-            )
-          }
-        />
-      </View>
+        {/* Menu Sections */}
+        <View className="px-6">
+          <Text className="text-[10px] font-black text-gray-400 uppercase tracking-[2px] mb-4 px-2">Account Settings</Text>
+          <View className="bg-gray-50 rounded-[32px] p-2 mb-8">
+            <MenuItem
+              icon="heart"
+              label="Saved Properties"
+              onPress={() => router.push("/(root)/(tabs)/saved")}
+            />
+            <MenuItem
+              icon="notifications"
+              label="Notifications"
+              onPress={() =>
+                Alert.alert("Coming Soon", "Notifications coming soon!")
+              }
+            />
+            <MenuItem
+              icon="shield-checkmark"
+              label="Privacy & Security"
+              onPress={() => Alert.alert("Coming Soon", "Privacy settings coming soon!")}
+            />
+          </View>
 
-      {/* Sign Out */}
-      <View className="px-6 mt-auto mb-8">
-        <TouchableOpacity
-          onPress={handleSignOut}
-          className="flex-row items-center justify-center gap-2 bg-red-50 py-4 rounded-2xl border border-red-100"
-        >
-          <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-          <Text className="text-red-500 font-semibold text-base">Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+          <Text className="text-[10px] font-black text-gray-400 uppercase tracking-[2px] mb-4 px-2">Support & Info</Text>
+          <View className="bg-gray-50 rounded-[32px] p-2 mb-8">
+            <MenuItem
+              icon="help-circle"
+              label="Help Center"
+              onPress={() =>
+                Linking.openURL(
+                  "mailto:support@kribb.app?subject=Help%20%26%20Support"
+                )
+              }
+            />
+            <MenuItem
+              icon="information-circle"
+              label="About Kribb"
+              onPress={() => Alert.alert("Kribb v1.0.0", "The modern real estate platform.")}
+            />
+          </View>
+
+          {/* Sign Out */}
+          <TouchableOpacity
+            onPress={handleSignOut}
+            activeOpacity={0.7}
+            className="flex-row items-center justify-center gap-3 bg-red-50 h-16 rounded-[24px] border border-red-100 mt-4"
+          >
+            <Ionicons name="log-out" size={22} color="#EF4444" />
+            <Text className="text-red-500 font-bold text-lg">Sign Out</Text>
+          </TouchableOpacity>
+        </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -165,13 +199,21 @@ function MenuItem({
   label: string;
   onPress?: () => void;
 }) {
+  const handlePress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    onPress?.();
+  };
+
   return (
     <TouchableOpacity
-      onPress={onPress}
-      className="flex-row items-center gap-4 bg-gray-50 px-4 py-4 rounded-2xl"
+      onPress={handlePress}
+      activeOpacity={0.6}
+      className="flex-row items-center gap-4 px-4 py-5 rounded-3xl"
     >
-      <Ionicons name={icon} size={22} color="#6B7280" />
-      <Text className="flex-1 text-gray-700 font-medium text-base">
+      <View className="w-10 h-10 bg-white rounded-xl items-center justify-center shadow-sm border border-gray-100">
+        <Ionicons name={icon} size={20} color="#3B82F6" />
+      </View>
+      <Text className="flex-1 text-gray-800 font-bold text-base">
         {label}
       </Text>
       <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />

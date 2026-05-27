@@ -3,17 +3,18 @@ import { Property } from "@/types";
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useCallback, useState } from "react";
+import { useCallback, useState, useRef, useEffect } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Text,
   TouchableOpacity,
   View,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import PropertyCard from "@/components/PropertyCard";
+import { PropertySkeleton } from "@/components/Skeletons";
 
 interface SavedProperty {
   id: string;
@@ -28,6 +29,7 @@ export default function SavedScreen() {
 
   const [saved, setSaved] = useState<SavedProperty[]>([]);
   const [loading, setLoading] = useState(true);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const fetchSaved = useCallback(async () => {
     if (!userId) return;
@@ -42,6 +44,18 @@ export default function SavedScreen() {
     setLoading(false);
   }, [userId]);
 
+  useEffect(() => {
+    if (!loading) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      fadeAnim.setValue(0);
+    }
+  }, [loading]);
+
   // Refresh every time the tab comes into focus
   useFocusEffect(
     useCallback(() => {
@@ -50,60 +64,65 @@ export default function SavedScreen() {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50">
+    <SafeAreaView className="flex-1 bg-white">
       {/* Header */}
-      <View className="px-5 pt-4 pb-3">
-        <Text className="text-2xl font-bold text-gray-900">Saved</Text>
+      <View className="px-5 pt-4 pb-4">
+        <Text className="text-3xl font-bold text-gray-900">Saved</Text>
         {!loading && (
-          <Text className="text-sm text-gray-400 mt-1">
+          <Text className="text-sm text-gray-400 font-medium mt-1">
             {saved.length} {saved.length === 1 ? "property" : "properties"}{" "}
-            saved
+            in your collection
           </Text>
         )}
       </View>
 
-      {loading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#2563EB" />
-        </View>
-      ) : (
-        <FlatList
-          data={saved}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={{ padding: 20, paddingBottom: 100 }}
-          showsVerticalScrollIndicator={false}
-          renderItem={({ item }) => (
-            <PropertyCard
-              property={item.properties}
-              onUnsave={() =>
-                setSaved((prev) => prev.filter((s) => s.id !== item.id))
-              }
-              showSave
-            />
-          )}
-          ListEmptyComponent={
-            <View className="flex-1 items-center justify-center py-24">
-              <View className="w-20 h-20 bg-red-50 rounded-full items-center justify-center mb-4">
-                <Ionicons name="heart-outline" size={36} color="#EF4444" />
-              </View>
-              <Text className="text-gray-700 text-lg font-bold mb-1">
-                No saved properties
-              </Text>
-              <Text className="text-gray-400 text-sm text-center px-8">
-                Tap the heart icon on any property to save it here
-              </Text>
-              <TouchableOpacity
-                onPress={() => router.push("/(root)/(tabs)/search")}
-                className="mt-6 bg-blue-600 px-6 py-3 rounded-2xl"
-              >
-                <Text className="text-white font-semibold">
-                  Browse Properties
+      <View className="flex-1 px-5">
+        {loading ? (
+          <View>
+            {[1, 2, 3].map((i) => (
+              <PropertySkeleton key={i} />
+            ))}
+          </View>
+        ) : (
+          <Animated.FlatList
+            style={{ opacity: fadeAnim }}
+            data={saved}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
+            showsVerticalScrollIndicator={false}
+            renderItem={({ item }) => (
+              <PropertyCard
+                property={item.properties}
+                onUnsave={() =>
+                  setSaved((prev) => prev.filter((s) => s.id !== item.id))
+                }
+                showSave
+              />
+            )}
+            ListEmptyComponent={
+              <View className="items-center py-24">
+                <View className="w-24 h-24 bg-red-50 rounded-[40px] items-center justify-center mb-6">
+                  <Ionicons name="heart" size={40} color="#EF4444" />
+                </View>
+                <Text className="text-gray-900 text-xl font-bold mb-2">
+                  No saved properties
                 </Text>
-              </TouchableOpacity>
-            </View>
-          }
-        />
-      )}
+                <Text className="text-gray-400 text-sm text-center px-10 leading-6">
+                  Items you save will appear here. Start exploring to build your dream collection.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push("/(root)/(tabs)/search")}
+                  className="mt-8 bg-blue-600 px-10 py-4 rounded-[24px] shadow-lg shadow-blue-200"
+                >
+                  <Text className="text-white font-bold text-base">
+                    Discover Properties
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            }
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }

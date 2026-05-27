@@ -3,72 +3,98 @@ import { Image, Text, TouchableOpacity, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Property } from "@/types";
 import { formatPrice } from "@/lib/utils";
+import * as Haptics from "expo-haptics";
 
 export default function FeaturedCard({ property }: { property: Property }) {
   const router = useRouter();
 
+  const onPress = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/(root)/property/${property.id}`);
+  };
+
   return (
     <TouchableOpacity
-      onPress={() => router.push(`/(root)/property/${property.id}`)}
-      className="w-72 mr-4 rounded-3xl overflow-hidden bg-white"
+      onPress={onPress}
+      activeOpacity={0.9}
+      className="w-[280px] mr-5 rounded-[32px] overflow-hidden bg-white border border-gray-100"
       style={{
         shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.08,
-        shadowRadius: 12,
-        elevation: 4,
-        opacity: property.is_sold ? 0.5 : 1,
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.05,
+        shadowRadius: 20,
+        elevation: 5,
+        opacity: property.is_sold ? 0.7 : 1,
       }}
     >
-      {/* Image */}
-      <Image
-        source={{ uri: property.images[0] }}
-        className="w-full h-44"
-        resizeMode="cover"
-      />
+      {/* Image Container */}
+      <View className="relative">
+        <Image
+          source={{ uri: property.images[0] }}
+          className="w-full h-48"
+          resizeMode="cover"
+        />
+        
+        {/* Gradient overlay simulation */}
+        <View className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-black/20 to-transparent" />
 
-      {/* Badge */}
-      <View className="absolute top-3 left-3 bg-white/90 px-3 py-1 rounded-full">
-        <Text className="text-xs font-semibold text-blue-600 capitalize">
-          {property.type}
-        </Text>
+        {/* Badge */}
+        <View className="absolute top-4 left-4 bg-white/95 px-3 py-1.5 rounded-2xl shadow-sm">
+          <Text className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
+            {property.type}
+          </Text>
+        </View>
+
+        {property.is_sold && (
+          <View className="absolute top-4 right-4 bg-red-500 px-3 py-1.5 rounded-2xl">
+            <Text className="text-[10px] font-bold text-white uppercase tracking-wider">Sold</Text>
+          </View>
+        )}
       </View>
 
-      {property.is_sold && (
-        <View className="absolute top-3 right-3 bg-red-500 px-3 py-1 rounded-full">
-          <Text className="text-xs font-semibold text-white">Sold</Text>
-        </View>
-      )}
-
       {/* Info */}
-      <View className="p-4">
-        <Text
-          className="text-base font-bold text-gray-800 mb-1"
-          numberOfLines={1}
-        >
-          {property.title}
-        </Text>
-
-        <View className="flex-row items-center gap-1 mb-3">
-          <Ionicons name="location-outline" size={13} color="#6B7280" />
-          <Text className="text-xs text-gray-500" numberOfLines={1}>
-            {property.address}, {property.city}
+      <View className="p-5">
+        <View className="flex-row justify-between items-start mb-2">
+          <Text
+            className="text-lg font-bold text-gray-900 flex-1 mr-2"
+            numberOfLines={1}
+          >
+            {property.title}
           </Text>
-        </View>
-
-        <View className="flex-row items-center justify-between">
-          <Text className="text-blue-600 font-bold text-base">
+          <Text className="text-blue-600 font-extrabold text-lg">
             {formatPrice(property.price)}
           </Text>
-          <View className="flex-row items-center gap-3">
-            <View className="flex-row items-center gap-1">
-              <Ionicons name="bed-outline" size={13} color="#6B7280" />
-              <Text className="text-xs text-gray-500">{property.bedrooms}</Text>
+        </View>
+
+        <View className="flex-row items-center gap-1 mb-4">
+          <Ionicons name="location" size={14} color="#3B82F6" />
+          <Text className="text-sm text-gray-500 font-medium" numberOfLines={1}>
+            {property.city}
+          </Text>
+        </View>
+
+        <View className="flex-row items-center justify-between pt-4 border-t border-gray-50">
+          <View className="flex-row items-center gap-4">
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-7 h-7 bg-blue-50 rounded-full items-center justify-center">
+                <Ionicons name="bed" size={14} color="#3B82F6" />
+              </View>
+              <Text className="text-xs text-gray-600 font-bold">{property.bedrooms}</Text>
             </View>
-            <View className="flex-row items-center gap-1">
-              <Ionicons name="water-outline" size={13} color="#6B7280" />
-              <Text className="text-xs text-gray-500">
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-7 h-7 bg-blue-50 rounded-full items-center justify-center">
+                <Ionicons name="water" size={14} color="#3B82F6" />
+              </View>
+              <Text className="text-xs text-gray-600 font-bold">
                 {property.bathrooms}
+              </Text>
+            </View>
+            <View className="flex-row items-center gap-1.5">
+              <View className="w-7 h-7 bg-blue-50 rounded-full items-center justify-center">
+                <Ionicons name="scan" size={14} color="#3B82F6" />
+              </View>
+              <Text className="text-xs text-gray-600 font-bold">
+                {property.area_sqft}
               </Text>
             </View>
           </View>
