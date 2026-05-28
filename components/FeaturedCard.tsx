@@ -1,17 +1,19 @@
-import { useRouter } from "expo-router";
-import { Image, Text, TouchableOpacity, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-import { Property } from "@/types";
 import { formatPrice } from "@/lib/utils";
+import { Property } from "@/types";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import { useRouter } from "expo-router";
+import React from "react";
+import { Text, TouchableOpacity, View } from "react-native";
 
-export default function FeaturedCard({ property }: { property: Property }) {
+const FeaturedCard = React.memo(function FeaturedCard({ property }: { property: Property }) {
   const router = useRouter();
 
-  const onPress = () => {
+  const onPress = React.useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/(root)/property/${property.id}`);
-  };
+  }, [property.id, router]);
 
   return (
     <TouchableOpacity
@@ -32,7 +34,8 @@ export default function FeaturedCard({ property }: { property: Property }) {
         <Image
           source={{ uri: property.images[0] }}
           className="w-full h-48"
-          resizeMode="cover"
+          contentFit="cover"
+          transition={200}
         />
         
         {/* Gradient overlay simulation */}
@@ -102,4 +105,6 @@ export default function FeaturedCard({ property }: { property: Property }) {
       </View>
     </TouchableOpacity>
   );
-}
+});
+
+export default FeaturedCard;

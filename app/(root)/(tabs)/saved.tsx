@@ -1,20 +1,19 @@
+import PropertyCard from "@/components/PropertyCard";
+import { PropertySkeleton } from "@/components/Skeletons";
 import { useSupabase } from "@/hooks/useSupabase";
 import { Property } from "@/types";
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useRouter } from "expo-router";
-import { useCallback, useState, useRef, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
-  FlatList,
+  Animated,
   Text,
   TouchableOpacity,
-  View,
-  Animated,
+  View
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useFocusEffect } from "@react-navigation/native";
-import PropertyCard from "@/components/PropertyCard";
-import { PropertySkeleton } from "@/components/Skeletons";
 
 interface SavedProperty {
   id: string;
@@ -22,7 +21,7 @@ interface SavedProperty {
   properties: Property;
 }
 
-export default function SavedScreen() {
+const SavedScreen = React.memo(function SavedScreen() {
   const { userId } = useAuth();
   const authSupabase = useSupabase();
   const router = useRouter();
@@ -42,7 +41,7 @@ export default function SavedScreen() {
 
     setSaved((data as unknown as SavedProperty[]) ?? []);
     setLoading(false);
-  }, [userId]);
+  }, [userId, authSupabase]);
 
   useEffect(() => {
     if (!loading) {
@@ -62,6 +61,18 @@ export default function SavedScreen() {
       fetchSaved();
     }, [fetchSaved])
   );
+
+  const renderItem = useCallback(({ item }: { item: SavedProperty }) => (
+    <PropertyCard
+      property={item.properties}
+      onUnsave={() =>
+        setSaved((prev) => prev.filter((s) => s.id !== item.id))
+      }
+      showSave
+    />
+  ), []);
+
+  const onDiscoverPress = useCallback(() => router.push("/(root)/(tabs)/search"), [router]);
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -90,15 +101,10 @@ export default function SavedScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
             showsVerticalScrollIndicator={false}
-            renderItem={({ item }) => (
-              <PropertyCard
-                property={item.properties}
-                onUnsave={() =>
-                  setSaved((prev) => prev.filter((s) => s.id !== item.id))
-                }
-                showSave
-              />
-            )}
+            renderItem={renderItem}
+            maxToRenderPerBatch={5}
+            windowSize={10}
+            removeClippedSubviews
             ListEmptyComponent={
               <View className="items-center py-24">
                 <View className="w-24 h-24 bg-red-50 rounded-[40px] items-center justify-center mb-6">
@@ -111,7 +117,7 @@ export default function SavedScreen() {
                   Items you save will appear here. Start exploring to build your dream collection.
                 </Text>
                 <TouchableOpacity
-                  onPress={() => router.push("/(root)/(tabs)/search")}
+                  onPress={onDiscoverPress}
                   className="mt-8 bg-blue-600 px-10 py-4 rounded-[24px] shadow-lg shadow-blue-200"
                 >
                   <Text className="text-white font-bold text-base">
@@ -125,4 +131,6 @@ export default function SavedScreen() {
       </View>
     </SafeAreaView>
   );
-}
+});
+
+export default SavedScreen;

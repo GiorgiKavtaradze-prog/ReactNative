@@ -1,10 +1,14 @@
+import { useSavedProperty } from "@/hooks/useSavedProperty";
+import { useSupabase } from "@/hooks/useSupabase";
 import { supabase } from "@/lib/supabase";
+import { formatPrice } from "@/lib/utils";
 import { useUserStore } from "@/store/userStore";
 import { Property } from "@/types";
 import { useAuth } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,19 +21,15 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Image,
 } from "react-native";
+import ImageViewing from "react-native-image-viewing";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { WebView } from "react-native-webview";
-import ImageViewing from "react-native-image-viewing";
-import { useSavedProperty } from "@/hooks/useSavedProperty";
-import { formatPrice } from "@/lib/utils";
-import { useSupabase } from "@/hooks/useSupabase";
 
 const { width } = Dimensions.get("window");
 const ADMIN_PHONE = "919999999999"; // replace with your WhatsApp number
 
-export default function PropertyDetailScreen() {
+const PropertyDetailScreen = React.memo(function PropertyDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { userId } = useAuth();
   const router = useRouter();
@@ -44,11 +44,7 @@ export default function PropertyDetailScreen() {
   const { isSaved, saveLoading, toggleSave } = useSavedProperty(id ?? "");
   const authSupabase = useSupabase();
 
-  useEffect(() => {
-    fetchProperty();
-  }, [id]);
-
-  const fetchProperty = async () => {
+  const fetchProperty = useCallback(async () => {
     const { data } = await supabase
       .from("properties")
       .select("*")
@@ -56,9 +52,13 @@ export default function PropertyDetailScreen() {
       .single();
     setProperty(data);
     setLoading(false);
-  };
+  }, [id]);
 
-  const handleDelete = () => {
+  useEffect(() => {
+    fetchProperty();
+  }, [fetchProperty]);
+
+  const handleDelete = useCallback(() => {
     Alert.alert("Delete Property", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -70,9 +70,9 @@ export default function PropertyDetailScreen() {
         },
       },
     ]);
-  };
+  }, [authSupabase, id, router]);
 
-  const handleMarkSold = () => {
+  const handleMarkSold = useCallback(() => {
     Alert.alert("Mark as Sold", "Are you sure?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -86,20 +86,59 @@ export default function PropertyDetailScreen() {
         },
       },
     ]);
-  };
+  }, [authSupabase, id]);
 
-  const handleContact = () => {
+  const handleContact = useCallback(() => {
     const message = `Hi! I'm interested in the property: ${property?.title}`;
     const url = `https://wa.me/${ADMIN_PHONE}?text=${encodeURIComponent(
       message
     )}`;
     Linking.openURL(url);
-  };
+  }, [property?.title]);
 
-  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+  const onScroll = useCallback((e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const index = Math.round(e.nativeEvent.contentOffset.x / width);
     setActiveIndex(index);
-  };
+  }, []);
+
+  const renderImageItem = useCallback(({ item }: { item: string }) => (
+    <TouchableOpacity onPress={() => setImageViewerVisible(true)}>
+      <Image
+        source={{ uri: item }}
+        style={{ width, height: 300 }}
+        contentFit="cover"
+        transition={200}
+      />
+    </TouchableOpacity>
+  ), []);
+
+  const mapUrl = useMemo(() => property ? `https://www.openstreetmap.org/export/embed.html?bbox=${
+    property.longitude - 0.003
+  }%2C${property.latitude - 0.003}%2C${property.longitude + 0.003}%2C${
+    property.latitude + 0.003
+  }&layer=mapnik&marker=${property.latitude}%2C${property.longitude}` : "", [property]);
+
+  const isLongDesc = useMemo(() => (property?.description?.length ?? 0) > 150, [property]);
+  const displayDesc = useMemo(() =>
+    expanded || !isLongDesc
+      ? property?.description
+      : property?.description?.slice(0, 150) + "...",
+  [expanded, isLongDesc, property]);
+
+  const handleMapPress = useCallback(() => {
+    if (!property) return;
+    router.push({
+      pathname: "/(root)/property/map",
+      params: {
+        latitude: property.latitude,
+        longitude: property.longitude,
+        title: property.title,
+        address: `${property.address}, ${property.city}`,
+      },
+    });
+  }, [property, router]);
+
+  const toggleExpanded = useCallback(() => setExpanded(!expanded), [expanded]);
 
   if (loading) {
     return (
@@ -117,18 +156,6 @@ export default function PropertyDetailScreen() {
     );
   }
 
-  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${
-    property.longitude - 0.003
-  }%2C${property.latitude - 0.003}%2C${property.longitude + 0.003}%2C${
-    property.latitude + 0.003
-  }&layer=mapnik&marker=${property.latitude}%2C${property.longitude}`;
-
-  const isLongDesc = (property.description?.length ?? 0) > 150;
-  const displayDesc =
-    expanded || !isLongDesc
-      ? property.description
-      : property.description?.slice(0, 150) + "...";
-
   return (
     <View className="flex-1 bg-white">
       <ScrollView showsVerticalScrollIndicator={false}>
@@ -138,20 +165,15 @@ export default function PropertyDetailScreen() {
             <FlatList
               data={property.images}
               keyExtractor={(_, i) => i.toString()}
-              renderItem={({ item }) => (
-                <TouchableOpacity onPress={() => setImageViewerVisible(true)}>
-                  <Image
-                    source={{ uri: item }}
-                    style={{ width, height: 300 }}
-                    resizeMode="cover"
-                  />
-                </TouchableOpacity>
-              )}
+              renderItem={renderImageItem}
               horizontal
               pagingEnabled
               showsHorizontalScrollIndicator={false}
               onScroll={onScroll}
               scrollEventThrottle={16}
+              maxToRenderPerBatch={3}
+              windowSize={5}
+              removeClippedSubviews
             />
           </View>
 
@@ -264,7 +286,7 @@ export default function PropertyDetailScreen() {
             {displayDesc}
           </Text>
           {isLongDesc && (
-            <TouchableOpacity onPress={() => setExpanded(!expanded)}>
+            <TouchableOpacity onPress={toggleExpanded}>
               <Text className="text-blue-600 text-sm font-medium mb-5">
                 {expanded ? "Show less" : "Read more"}
               </Text>
@@ -286,17 +308,7 @@ export default function PropertyDetailScreen() {
 
           {/* Map Preview */}
           <TouchableOpacity
-            onPress={() =>
-              router.push({
-                pathname: "/(root)/property/map",
-                params: {
-                  latitude: property.latitude,
-                  longitude: property.longitude,
-                  title: property.title,
-                  address: `${property.address}, ${property.city}`,
-                },
-              })
-            }
+            onPress={handleMapPress}
             activeOpacity={0.9}
             className="rounded-2xl overflow-hidden mb-6"
             style={{ height: 200 }}
@@ -365,7 +377,7 @@ export default function PropertyDetailScreen() {
       />
     </View>
   );
-}
+});
 
 function SpecItem({
   icon,
@@ -384,3 +396,5 @@ function SpecItem({
     </View>
   );
 }
+
+export default PropertyDetailScreen;

@@ -6,20 +6,20 @@ import { Property } from "@/types";
 import { useUser } from "@clerk/expo";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
 import { useFocusEffect, useRouter } from "expo-router";
-import { useCallback, useState, useRef, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Animated,
   FlatList,
-  Image,
+  RefreshControl,
   Text,
   TouchableOpacity,
   View,
-  Animated,
-  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function HomeScreen() {
+const HomeScreen = React.memo(function HomeScreen() {
   const { user } = useUser();
   const router = useRouter();
 
@@ -46,7 +46,7 @@ export default function HomeScreen() {
     }, [])
   );
 
-  const fetchProperties = async (isRefresh = false) => {
+  const fetchProperties = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
@@ -71,17 +71,24 @@ export default function HomeScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, []);
 
-  const onSearchPress = () => {
+  const onSearchPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push("/(root)/(tabs)/search");
-  };
+  }, [router]);
 
-  const onFilterPress = () => {
+  const onFilterPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push("/(root)/(tabs)/search?openFilters=true");
-  };
+  }, [router]);
+
+  const renderFeaturedItem = useCallback(({ item }: { item: Property }) => <FeaturedCard property={item} />, []);
+  const renderRecommendedItem = useCallback(({ item }: { item: Property }) => (
+    <View className="px-5">
+      <PropertyCard property={item} />
+    </View>
+  ), []);
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -90,6 +97,9 @@ export default function HomeScreen() {
         keyExtractor={(item) => item.id}
         contentContainerStyle={{ paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
+        maxToRenderPerBatch={5}
+        windowSize={10}
+        removeClippedSubviews
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -114,7 +124,7 @@ export default function HomeScreen() {
                 className="w-10 h-10 rounded-full bg-gray-100 items-center justify-center overflow-hidden border border-gray-200"
               >
                 {user?.imageUrl ? (
-                  <Image source={{ uri: user.imageUrl }} className="w-full h-full" />
+                  <Image source={{ uri: user.imageUrl }} className="w-full h-full" contentFit="cover" />
                 ) : (
                   <Ionicons name="person" size={20} color="#6B7280" />
                 )}
@@ -165,7 +175,7 @@ export default function HomeScreen() {
                 <FlatList
                   data={featured}
                   keyExtractor={(item) => item.id}
-                  renderItem={({ item }) => <FeaturedCard property={item} />}
+                  renderItem={renderFeaturedItem}
                   horizontal
                   snapToInterval={300} // width (288) + margin (12)
                   decelerationRate="fast"
@@ -191,11 +201,7 @@ export default function HomeScreen() {
             )}
           </Animated.View>
         }
-        renderItem={({ item }) => (
-          <View className="px-5">
-            <PropertyCard property={item} />
-          </View>
-        )}
+        renderItem={renderRecommendedItem}
         ListEmptyComponent={
           !loading ? (
             <View className="items-center py-20">
@@ -210,4 +216,6 @@ export default function HomeScreen() {
       />
     </SafeAreaView>
   );
-}
+});
+
+export default HomeScreen;

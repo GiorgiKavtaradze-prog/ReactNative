@@ -3,10 +3,12 @@ import { formatPrice } from "@/lib/utils";
 import { Property } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Image, Text, TouchableOpacity, View } from "react-native";
+import { Text, TouchableOpacity, View } from "react-native";
 import * as Haptics from "expo-haptics";
+import { Image } from "expo-image";
+import React from "react";
 
-export default function PropertyCard({
+const PropertyCard = React.memo(function PropertyCard({
   property,
   onUnsave,
   showSave = false,
@@ -21,16 +23,16 @@ export default function PropertyCard({
     onUnsave
   );
 
-  const onPress = () => {
+  const onPress = React.useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     router.push(`/(root)/property/${property.id}`);
-  };
+  }, [property.id, router]);
 
-  const handleToggleSave = (e: any) => {
+  const handleToggleSave = React.useCallback((e: any) => {
     e.stopPropagation();
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     toggleSave();
-  };
+  }, [toggleSave]);
 
   return (
     <TouchableOpacity
@@ -51,7 +53,8 @@ export default function PropertyCard({
         <Image
           source={{ uri: property.images[0] }}
           className="w-28 h-28 rounded-2xl"
-          resizeMode="cover"
+          contentFit="cover"
+          transition={200}
         />
         {property.is_sold && (
           <View className="absolute inset-0 bg-black/20 rounded-2xl items-center justify-center">
@@ -116,4 +119,6 @@ export default function PropertyCard({
       </View>
     </TouchableOpacity>
   );
-}
+});
+
+export default PropertyCard;

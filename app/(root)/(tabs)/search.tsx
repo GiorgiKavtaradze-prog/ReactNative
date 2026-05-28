@@ -9,7 +9,7 @@ import { Property } from "@/types";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { useLocalSearchParams } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Animated,
   Keyboard,
@@ -20,25 +20,24 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-export default function SearchScreen() {
+const SearchScreen = React.memo(function SearchScreen() {
   const [results, setResults] = useState<Property[]>([]);
   const [loading, setLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
 
   const { openFilters } = useLocalSearchParams<{ openFilters?: string }>();
 
-  const {
-    search,
-    type,
-    bedrooms,
-    minPrice,
-    maxPrice,
-    setSearch,
-    setType,
-    setBedrooms,
-    setMinPrice,
-    setMaxPrice,
-  } = useFilterStore();
+  // Optimized Zustand selectors to only re-render when relevant state changes
+  const search = useFilterStore(state => state.search);
+  const type = useFilterStore(state => state.type);
+  const bedrooms = useFilterStore(state => state.bedrooms);
+  const minPrice = useFilterStore(state => state.minPrice);
+  const maxPrice = useFilterStore(state => state.maxPrice);
+  const setSearch = useFilterStore(state => state.setSearch);
+  const setType = useFilterStore(state => state.setType);
+  const setBedrooms = useFilterStore(state => state.setBedrooms);
+  const setMinPrice = useFilterStore(state => state.setMinPrice);
+  const setMaxPrice = useFilterStore(state => state.setMaxPrice);
 
   const debouncedSearch = useDebounce(search, 500);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -49,9 +48,29 @@ export default function SearchScreen() {
     }
   }, [openFilters]);
 
+  const fetchResults = useCallback(async () => {
+    setLoading(true);
+
+    let query = supabase.from("properties").select("*");
+
+    if (debouncedSearch) {
+      query = query.or(`title.ilike.%${debouncedSearch}%,city.ilike.%${debouncedSearch}%`);
+    }
+
+    if (type) query = query.eq("type", type);
+    if (bedrooms) query = query.eq("bedrooms", bedrooms);
+    if (minPrice) query = query.gte("price", minPrice);
+    if (maxPrice) query = query.lte("price", maxPrice);
+
+    const { data } = await query.order("created_at", { ascending: false });
+
+    setResults(data ?? []);
+    setLoading(false);
+  }, [debouncedSearch, type, bedrooms, minPrice, maxPrice]);
+
   useEffect(() => {
     fetchResults();
-  }, [debouncedSearch, type, bedrooms, minPrice, maxPrice]);
+  }, [fetchResults]);
 
   useEffect(() => {
     if (!loading) {
@@ -72,30 +91,12 @@ export default function SearchScreen() {
     maxPrice !== null,
   ].filter(Boolean).length;
 
-  const fetchResults = async () => {
-    setLoading(true);
-
-    let query = supabase.from("properties").select("*");
-
-    if (debouncedSearch) {
-      query = query.or(`title.ilike.%${debouncedSearch}%,city.ilike.%${debouncedSearch}%`);
-    }
-
-    if (type) query = query.eq("type", type);
-    if (bedrooms) query = query.eq("bedrooms", bedrooms);
-    if (minPrice) query = query.gte("price", minPrice);
-    if (maxPrice) query = query.lte("price", maxPrice);
-
-    const { data } = await query.order("created_at", { ascending: false });
-
-    setResults(data ?? []);
-    setLoading(false);
-  };
-
-  const onFilterPress = () => {
+  const onFilterPress = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setShowFilters(true);
-  };
+  }, []);
+
+  const renderItem = useCallback(({ item }: { item: Property }) => <PropertyCard property={item} />, []);
 
   return (
     <SafeAreaView className="flex-1 bg-white">
@@ -210,7 +211,10 @@ export default function SearchScreen() {
             keyExtractor={(item) => item.id}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={{ paddingBottom: 100, paddingTop: 10 }}
-            renderItem={({ item }) => <PropertyCard property={item} />}
+            renderItem={renderItem}
+            maxToRenderPerBatch={5}
+            windowSize={10}
+            removeClippedSubviews
             ListEmptyComponent={
               <View className="items-center py-20">
                 <View className="w-20 h-20 bg-gray-50 rounded-full items-center justify-center mb-4">
@@ -218,7 +222,8 @@ export default function SearchScreen() {
                 </View>
                 <Text className="text-gray-900 text-lg font-bold">No results found</Text>
                 <Text className="text-gray-400 text-sm mt-1 text-center">
-                  We couldn't find any properties matching{"\n"}your current filters.
+                  We couldn't find any properties matching
+                  {"\n"}your current filters.
                 </Text>
               </View>
             }
@@ -229,4 +234,6 @@ export default function SearchScreen() {
       <FilterModal visible={showFilters} onClose={() => setShowFilters(false)} />
     </SafeAreaView>
   );
-}
+});
+
+export default SearchScreen;
